@@ -43,6 +43,7 @@ export interface CancelablePromise<T> extends Promise<T>, Cancelable {}
 
 export interface Action {
     readonly type: string | symbol;
+    SAGA_ACTION?: boolean;
 }
 
 export interface Monitor {

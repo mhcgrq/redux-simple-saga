@@ -1,11 +1,22 @@
 import { is, sym, check, remove, internalErr, SAGA_ACTION } from './utils';
-import { buffers } from './buffers';
+import { buffers, Buffer } from './buffers';
 import { asap } from './scheduler';
-import { Action, Subscribe, Unsubscribe } from './interface';
+import { Action } from './interface';
+
+export type NullableAction = Action | null;
+type TakerFunction = (input: Action) => void;
+type ChannelFlush = (input: NullableAction[] | typeof END) => void;
+
+export interface Taker extends TakerFunction {
+    MATCH?: (input: Action) => boolean;
+}
+export interface ChannelTake extends Taker {
+    cancel?: () => void;
+}
 
 const CHANNEL_END_TYPE = sym('CHANNEL_END');
 export const END = Object.freeze({ type: CHANNEL_END_TYPE });
-export const isEnd = (action: Action) => action && action.type === CHANNEL_END_TYPE;
+export const isEnd = (action: NullableAction) => action && action.type === CHANNEL_END_TYPE;
 
 export const INVALID_BUFFER = 'invalid buffer passed to channel factory function';
 export let UNDEFINED_INPUT_ERROR = 'Saga was provided with an undefined action';
@@ -17,23 +28,11 @@ if (process.env.NODE_ENV !== 'production') {
   `;
 }
 
-type ActionLike = Action | null;
-type TakerFunction = (input: Action) => void;
-type ChannelFlush = (input: ActionLike[] | typeof END) => void;
-
-interface Taker extends TakerFunction {
-    MATCH?: (input: Action) => boolean;
-    this: () => void;
-}
-interface ChannelTake extends Taker {
-    cancel?: () => void;
-}
-
 export default class Channel {
     private isClosed = false;
     private takers: Taker[] = [];
 
-    constructor(private buffer = buffers.fixed<Action>()) {
+    constructor(private buffer: Buffer<NullableAction> = buffers.fixed<Action>()) {
         check(buffer, is.buffer, INVALID_BUFFER);
     }
 
@@ -106,47 +105,6 @@ export default class Channel {
             throw internalErr('Cannot have pending takers with non empty buffer');
         }
     }
-}
-
-export function eventChannel(
-    subscribe: Subscribe,
-    buffer = buffers.none(),
-    matcher,
-) {
-    /**
-      should be if(typeof matcher !== undefined) instead?
-      see PR #273 for a background discussion
-    **/
-    if (arguments.length > 2) {
-        check(matcher, is.func, 'Invalid match function passed to eventChannel');
-    }
-
-    const chan = channel(buffer);
-    const unsubscribe = subscribe((input) => {
-        if (isEnd(input)) {
-            chan.close();
-            return;
-        }
-        if (matcher && !matcher(input)) {
-            return;
-        }
-        chan.put(input);
-    });
-
-    if (!is.func(unsubscribe)) {
-        throw new Error('in eventChannel: subscribe should return a function to unsubscribe');
-    }
-
-    return {
-        take: chan.take,
-        flush: chan.flush,
-        close: () => {
-            if (!chan.__closed__) {
-                chan.close();
-                unsubscribe();
-            }
-        },
-    };
 }
 
 export function stdChannel(subscribe) {

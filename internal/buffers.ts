@@ -12,14 +12,14 @@ enum OVERFLOW {
 
 const defaultLimit = 10;
 
-const zeroBuffer: BufferLike<undefined> = {
-    isEmpty: kTrue,
-    put: konst(undefined),
-    take: konst(undefined),
-    flush: konst([undefined]),
-};
+// const zeroBuffer: BufferLike<null> = {
+//     isEmpty: kTrue,
+//     put: konst(null),
+//     take: konst(null),
+//     flush: konst([null]),
+// };
 
-class Buffer<T> implements BufferLike<T | null> {
+export class Buffer<T> implements BufferLike<T | null> {
     private arr: Array<T | null>;
     private length = 0;
     private pushIndex = 0;
@@ -91,7 +91,7 @@ class Buffer<T> implements BufferLike<T | null> {
 }
 
 export const buffers = {
-    none: () => zeroBuffer,
+    none: () => new Buffer<null>(0, OVERFLOW.DROP),
     fixed: <T>(limit = defaultLimit) => new Buffer<T>(limit, OVERFLOW.THROW),
     dropping: <T>(limit = defaultLimit) => new Buffer<T>(limit, OVERFLOW.DROP),
     sliding: <T>(limit = defaultLimit) => new Buffer<T>(limit, OVERFLOW.SLIDE),
