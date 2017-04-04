@@ -1,6 +1,5 @@
-import { is, sym, check, remove, internalErr, SAGA_ACTION } from './utils';
+import { is, sym, check, remove, internalErr } from './utils';
 import { buffers, Buffer } from './buffers';
-import { asap } from './scheduler';
 import { Action } from './interface';
 
 export type NullableAction = Action | null;
@@ -105,25 +104,4 @@ export default class Channel {
             throw internalErr('Cannot have pending takers with non empty buffer');
         }
     }
-}
-
-export function stdChannel(subscribe) {
-    const chan = eventChannel((cb) => subscribe((input) => {
-        if (input[SAGA_ACTION]) {
-            cb(input);
-            return;
-        }
-        asap(() => cb(input));
-    }));
-
-    return {
-        ...chan,
-        take(cb, matcher) {
-            if (arguments.length > 1) {
-                check(matcher, is.func, 'channel.take\'s matcher argument must be a function');
-                cb[MATCH] = matcher;
-            }
-            chan.take(cb);
-        },
-    };
 }

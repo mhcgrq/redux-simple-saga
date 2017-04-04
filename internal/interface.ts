@@ -71,6 +71,7 @@ export interface Task {
     cancel(): void;
 }
 
-export type Pattern = string | symbol | ((value: any) => boolean) | string[];
+export type Predicate = (arg: any) => boolean;
+export type Pattern = string | symbol | Predicate | string[];
 export type Unsubscribe = () => void;
 export type Subscribe<T> = (cb: (input: T) => void) => Unsubscribe;
