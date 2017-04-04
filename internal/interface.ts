@@ -1,5 +1,6 @@
 import {Action, Middleware} from 'redux';
 import { sym } from './utils';
+import { EffectDescriptor } from './io';
 
 export interface Task {
     readonly TASK: string;
@@ -31,7 +32,7 @@ export interface Deferrable<T> {
     resolve: (reason?: any) => void;
 }
 
-export interface SagaIterator<T> extends Iterator<T>, Helper {
+export interface SagaIterator extends Iterator<EffectDescriptor>, Helper {
     name: string;
 }
 
@@ -52,7 +53,7 @@ export interface Monitor {
         parentEffectId: number;
         label: string;
         root?: boolean;
-        effect: Effect;
+        effect: EffectDescriptor;
     }): void;
 
     effectResolved(effectId: number, res: any): void;
@@ -71,6 +72,7 @@ export interface Task {
     cancel(): void;
 }
 
+export type Saga = (...args: any[]) => SagaIterator;
 export type Predicate = (arg: any) => boolean;
 export type Pattern = string | symbol | Predicate | string[];
 export type Unsubscribe = () => void;

@@ -108,10 +108,10 @@ export function autoInc(seed = 0) {
 
 export const uid = autoInc();
 
-const kThrow = <T>(err?: string) : IteratorResult<T> => { throw err; };
+const kThrow = <T>(err?: Error) : IteratorResult<T> => { throw err; };
 const kReturn = <T>(value: T): IteratorResult<T> => ({ value, done: true });
 export function makeIterator<T>(
-    next: (value?: any) => IteratorResult<T>,
+    next: (...value: any[]) => IteratorResult<T>,
     thro = kThrow,
     name = '',
     isHelper: boolean,

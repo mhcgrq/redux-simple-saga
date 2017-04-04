@@ -1,4 +1,4 @@
-import { sym, is, identity, check, TASK } from './utils';
+import { is, identity, check } from './utils';
 import { takeEveryHelper, takeLatestHelper, throttleHelper } from './sagaHelpers';
 import Channel from './channel';
 import { Pattern, Action } from './interface';
@@ -18,7 +18,7 @@ enum EffectName {
     FLUSH,
 }
 
-interface EffectDescriptor {
+export interface EffectDescriptor {
     IO: boolean;
     type: EffectName;
     payload: EffectPayloadDescriptor;
