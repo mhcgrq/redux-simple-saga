@@ -1,8 +1,8 @@
 import { END } from './channel';
-import { makeIterator, delay, is, deprecate } from './utils';
-import { take, fork, cancel, actionChannel, call } from './io';
+import { makeIterator, delay, is } from './utils';
+import { take, fork, cancel, actionChannel, call, EffectDescriptor } from './io';
 import { buffers } from './buffers';
-import { Pattern, Saga } from './interface';
+import { Pattern, Saga, Action } from './interface';
 import Channel from './channel';
 
 const done = { done: true, value: undefined };
@@ -13,13 +13,13 @@ type UpdateExternalState = (arg: any) => any;
 interface FSM<T> {
     [state: string]: () => {
         state: statePtr<T>,
-        output: IteratorResult<T | undefined>,
-        updateExternalState: UpdateExternalState,
+        output?: IteratorResult<T | undefined>,
+        updateExternalState?: UpdateExternalState,
     };
 }
 
 function fsmIterator<T>(fsm: FSM<T>, entryState: statePtr<T>, name = 'iterator') {
-    let updateState: UpdateExternalState;
+    let updateState: UpdateExternalState | undefined;
     let nextState = entryState;
 
     function next(arg: any, error: Error) {
@@ -35,7 +35,7 @@ function fsmIterator<T>(fsm: FSM<T>, entryState: statePtr<T>, name = 'iterator')
             const { state: _state, output: _output, updateExternalState } = fsm[nextState]();
             nextState = _state;
             updateState = updateExternalState;
-            return nextState === endState ? done : _output;
+            return nextState === endState ? done : (_output as IteratorResult<T | undefined>);
         }
     }
 
@@ -57,63 +57,72 @@ function safeName(patternOrChannel: Pattern | Pattern[] | Channel) {
     }
 }
 
-export function takeEveryHelper(patternOrChannel, worker: Saga, ...args) {
+export function takeEveryHelper(patternOrChannel: Pattern | Channel, worker: Saga, ...args: any[]) {
     const yTake = { done: false, value: take(patternOrChannel) };
-    const yFork = (ac) => ({ done: false, value: fork(worker, ...args, ac) });
+    const yFork = (ac: Action) => ({ done: false, value: fork(worker, ...args, ac) });
 
-    let action, setAction = (ac) => action = ac;
+    let incomingAction: Action;
+    const setAction = (ac: Action) => incomingAction = ac;
 
-    return fsmIterator({
-        q1() { return ['q2', yTake, setAction]; },
-        q2() { return action === END ? [qEnd] : ['q1', yFork(action)]; },
-    }, 'q1', `takeEvery(${safeName(patternOrChannel)}, ${worker.name})`);
+    return fsmIterator<EffectDescriptor>(
+        {
+            q1: () => ({ state: 'q2', output: yTake, updateExternalState: setAction }),
+            q2: () => incomingAction === END
+                ? ({ state: endState })
+                : ({ state: 'q1', output: yFork(incomingAction) })
+        },
+        'q1',
+        `takeEvery(${safeName(patternOrChannel)}, ${worker.name})`
+    );
 }
 
-export function takeLatestHelper(patternOrChannel, worker, ...args) {
+export function takeLatestHelper(patternOrChannel: Pattern | Channel, worker: Saga, ...args: any[]) {
     const yTake = { done: false, value: take(patternOrChannel) };
-    const yFork = (ac) => ({ done: false, value: fork(worker, ...args, ac) });
-    const yCancel = (task) => ({ done: false, value: cancel(task) });
+    const yFork = (ac: Action) => ({ done: false, value: fork(worker, ...args, ac) });
+    const yCancel = (task: EffectDescriptor) => ({ done: false, value: cancel(task) });
 
-    let task, action;
-    const setTask = (t) => task = t;
-    const setAction = (ac) => action = ac;
+    let currentTask: EffectDescriptor;
+    let incomingAction: Action;
+    const setTask = (t: EffectDescriptor) => currentTask = t;
+    const setAction = (ac: Action) => incomingAction = ac;
 
-    return fsmIterator({
-        q1() { return ['q2', yTake, setAction]; },
-        q2() {
-            return action === END
-                ? [qEnd]
-                : task ? ['q3', yCancel(task)] : ['q1', yFork(action), setTask];
+    return fsmIterator(
+        {
+            q1: () => ({ state: 'q2', output: yTake, updateExternalState: setAction }),
+            q2: () => incomingAction === END
+                ? ({ state: endState })
+                : currentTask
+                    ? ({ state: 'q3', output: yCancel(currentTask) })
+                    : ({ state: 'q1', output: yFork(incomingAction), updateExternalState: setTask }),
+            q3: () => ({ state: 'q1', output: yFork(incomingAction), updateExternalState: setTask }),
         },
-        q3() {
-            return ['q1', yFork(action), setTask];
-        },
-    }, 'q1', `takeLatest(${safeName(patternOrChannel)}, ${worker.name})`);
+        'q1',
+        `takeLatest(${safeName(patternOrChannel)}, ${worker.name})`
+    );
 }
 
-export function throttleHelper(delayLength, pattern, worker, ...args) {
-    let action, channel;
+export function throttleHelper(delayLength: number, pattern: Pattern, worker: Saga, ...args: any[]) {
+    let action: Action;
+    let channel: Channel;
 
-    const yActionChannel = { done: false, value: actionChannel(pattern, buffers.sliding(1)) };
-    const yTake = () => ({ done: false, value: take(channel, pattern) });
-    const yFork = (ac) => ({ done: false, value: fork(worker, ...args, ac) });
+    const yActionChannel = { done: false, value: actionChannel(pattern, buffers.sliding<Action>(1)) };
+    const yTake = () => ({ done: false, value: take(channel) });
+    const yFork = (ac: Action) => ({ done: false, value: fork(worker, ...args, ac) });
     const yDelay = { done: false, value: call(delay, delayLength) };
 
-    const setAction = (ac) => action = ac;
-    const setChannel = (ch) => channel = ch;
+    const setAction = (ac: Action) => action = ac;
+    const setChannel = (ch: Channel) => channel = ch;
 
-    return fsmIterator({
-        q1() { return ['q2', yActionChannel, setChannel]; },
-        q2() { return ['q3', yTake(), setAction]; },
-        q3() { return action === END ? [qEnd] : ['q4', yFork(action)]; },
-        q4() { return ['q2', yDelay]; },
-    }, 'q1', `throttle(${safeName(pattern)}, ${worker.name})`);
+    return fsmIterator(
+        {
+            q1: () => ({ state: 'q2', output: yActionChannel, updateExternalState: setChannel }),
+            q2: () => ({ state: 'q3', output: yTake(), updateExternalState: setAction }),
+            q3: () => action === END
+                ? ({ state: endState })
+                : ({ state: 'q4', output: yFork(action) }),
+                q4: () => ({ state: 'q2', output: yDelay })
+        },
+        'q1',
+        `throttle(${safeName(pattern)}, ${worker.name})`
+    );
 }
-
-const deprecationWarning = (helperName) =>
-    `import ${helperName} from 'redux-saga' has been deprecated in favor of import ${helperName} from 'redux-saga/effects'.
-The latter will not work with yield*, as helper effects are wrapped automatically for you in fork effect.
-Therefore yield ${helperName} will return task descriptor to your saga and execute next lines of code.`;
-export const takeEvery = deprecate(takeEveryHelper, deprecationWarning('takeEvery'));
-export const takeLatest = deprecate(takeLatestHelper, deprecationWarning('takeLatest'));
-export const throttle = deprecate(throttleHelper, deprecationWarning('throttle'));

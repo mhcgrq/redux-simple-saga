@@ -2,6 +2,7 @@ import { is, identity, check } from './utils';
 import { takeEveryHelper, takeLatestHelper, throttleHelper } from './sagaHelpers';
 import Channel from './channel';
 import { Pattern, Action } from './interface';
+import { Buffer } from './buffers';
 
 enum EffectName {
     TAKE,
@@ -209,10 +210,10 @@ export function select<T>(selector: (...args: AnyArg) => T, ...args: AnyArg) {
 **/
 interface ActionChannelEffectPayloadDescriptor {
     pattern: Pattern;
-    buffer: Buffer;
+    buffer: Buffer<Action>;
 }
 
-export function actionChannel(pattern: Pattern, buffer: Buffer) {
+export function actionChannel(pattern: Pattern, buffer: Buffer<Action>) {
     check(pattern, is.notUndef, 'actionChannel(pattern,...): argument pattern is undefined');
     if (arguments.length > 1) {
         check(buffer, is.notUndef, 'actionChannel(pattern, buffer): argument buffer is undefined');

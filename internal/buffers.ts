@@ -1,4 +1,3 @@
-import { kTrue, noop, konst } from './utils';
 import { BufferLike } from './interface';
 
 export const BUFFER_OVERFLOW = 'Channel\'s Buffer overflow!';
@@ -11,13 +10,6 @@ enum OVERFLOW {
 }
 
 const defaultLimit = 10;
-
-// const zeroBuffer: BufferLike<null> = {
-//     isEmpty: kTrue,
-//     put: konst(null),
-//     take: konst(null),
-//     flush: konst([null]),
-// };
 
 export class Buffer<T> implements BufferLike<T | null> {
     private arr: Array<T | null>;
