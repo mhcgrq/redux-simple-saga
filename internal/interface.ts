@@ -73,7 +73,7 @@ export interface Task {
 }
 
 export type Saga = (...args: any[]) => SagaIterator;
-export type Predicate = (arg: any) => boolean;
-export type Pattern = string | symbol | Predicate | string[];
+export type Predicate = (action: Action) => boolean;
+export type Pattern = string | symbol | Predicate | (string | symbol)[];
 export type Unsubscribe = () => void;
 export type Subscribe<T> = (cb: (input: T) => void) => Unsubscribe;
