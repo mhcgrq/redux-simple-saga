@@ -3,6 +3,7 @@ import {
     Deferrable,
     SagaIterator,
 } from './interface';
+import { EffectDescriptor } from './io';
 
 export const sym = (id: number | string) => `@@redux-saga/${id}`;
 export const TASK = sym('TASK');
@@ -108,15 +109,15 @@ export function autoInc(seed = 0) {
 
 export const uid = autoInc();
 
-const kThrow = <T>(err?: Error) : IteratorResult<T> => { throw err; };
-const kReturn = <T>(value: T): IteratorResult<T> => ({ value, done: true });
-export function makeIterator<T>(
-    next: (...value: any[]) => IteratorResult<T>,
+const kThrow = (err: Error) => { throw err; };
+const kReturn = (value: any) => ({ value, done: true });
+export function makeIterator(
+    next: (value: any) => IteratorResult<EffectDescriptor>,
     thro = kThrow,
     name = '',
-    isHelper: boolean,
-): SagaIterator<T> {
-    const iterator: SagaIterator<T> = { name, next, throw: thro, return: kReturn };
+    isHelper?: boolean,
+): SagaIterator {
+    const iterator: SagaIterator = { name, next, throw: thro, return: kReturn };
 
     if (isHelper) {
         iterator.HELPER = true;

@@ -1,5 +1,3 @@
-import {Action, Middleware} from 'redux';
-import { sym } from './utils';
 import { EffectDescriptor } from './io';
 
 export interface Task {
